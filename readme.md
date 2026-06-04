@@ -2,7 +2,7 @@
 
 > Secure, precise, and automated WhatsApp messaging for everyone. Schedule reminders, follow-ups, and recurring messages with zero hassle.
 
-![Pingly Dashboard Mockup](/Users/sagarpatil/.gemini/antigravity/brain/b45816d0-fb7e-4d99-afb4-daa8e5dded3e/pingly_dashboard_mockup_1780577711100.png)
+![Pingly Dashboard Mockup](image-3.png)
 
 ## ✨ Overview
 
