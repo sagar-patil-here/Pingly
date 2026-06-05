@@ -21,16 +21,24 @@ import { Button } from "@/components/ui/button";
 import { useApi } from "@/lib/api";
 import type { ScheduledMessage, WhatsAppStatus } from "@/lib/types";
 import { toast } from "sonner";
+import { useAuth } from "@clerk/nextjs"; // 1. Import the useAuth hook from Clerk
 
 export function DashboardOverview() {
+  const { isLoaded, isSignedIn } = useAuth(); // 2. Extract state variables
   const { client } = useApi();
   const [messages, setMessages] = useState<ScheduledMessage[]>([]);
   const [whatsapp, setWhatsapp] = useState<WhatsAppStatus | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // 3. CRITICAL: Prevent API calls if Clerk is still initializing or if the user isn't signed in
+    if (!isLoaded || !isSignedIn) {
+      return;
+    }
+
     const load = async () => {
       try {
+        setLoading(true);
         const [messagesRes, statusRes] = await Promise.all([
           client.get<ScheduledMessage[]>("/messages"),
           client.get<WhatsAppStatus>("/whatsapp/status"),
@@ -45,7 +53,7 @@ export function DashboardOverview() {
     };
 
     load();
-  }, [client]);
+  }, [client, isLoaded, isSignedIn]); // 4. Add dependencies so it fires immediately when auth initializes
 
   const sent = messages.filter((m) => m.status === "sent");
   const pending = messages.filter((m) => m.status === "pending");
@@ -54,7 +62,8 @@ export function DashboardOverview() {
     (a, b) => new Date(a.scheduled_time).getTime() - new Date(b.scheduled_time).getTime()
   )[0];
 
-  if (loading) {
+  // 5. Show the spinner while Clerk is authenticating OR while data is fetching from Render
+  if (!isLoaded || loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
