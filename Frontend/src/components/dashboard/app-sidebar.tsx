@@ -1,5 +1,5 @@
 "use client";
-
+import Link from "next/link";
 import { MessageCircle, QrCode, CalendarClock, History, User } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
 import {

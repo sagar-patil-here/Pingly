@@ -1,0 +1,26 @@
+{
+    "name": "Pingly Automation",
+    "short_name": "Pingly",
+    "description": "WhatsApp message scheduling SaaS — schedule reminders, birthday wishes, and follow-ups automatically.",
+    "categories": ["productivity", "utilities"],
+    "start_url": "/dashboard",
+    "display": "standalone",
+    "background_color": "#09090b",
+    "theme_color": "#09090b",
+    "orientation": "portrait",
+    "id": "/dashboard",
+    "icons": [
+      {
+        "src": "/icon.png",
+        "sizes": "192x192",
+        "type": "image/png",
+        "purpose": "any maskable"
+      },
+      {
+        "src": "/icon.png",
+        "sizes": "512x512",
+        "type": "image/png",
+        "purpose": "any"
+      }
+    ]
+  }
