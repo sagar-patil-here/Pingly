@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
+import NativeContactPicker from "@/components/NativeContactPicker";
 import {
   Popover,
   PopoverContent,
@@ -149,13 +150,22 @@ export default function SchedulePage() {
             <CardContent className="space-y-6">
               <div className="space-y-2">
                 <Label htmlFor="recipient">Recipient Number</Label>
-                <Input
-                  id="recipient"
-                  placeholder="+1 (123) 456-7890"
-                  type="tel"
-                  value={recipient}
-                  onChange={(e) => setRecipient(e.target.value)}
-                />
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                  <div className="flex-1">
+                    <Input
+                      id="recipient"
+                      placeholder="+1 (123) 456-7890"
+                      type="tel"
+                      value={recipient}
+                      onChange={(e) => setRecipient(e.target.value)}
+                    />
+                  </div>
+                  <NativeContactPicker
+                    onContactSelected={(_, phoneNumber) => {
+                      setRecipient(phoneNumber);
+                    }}
+                  />
+                </div>
                 <p className="text-[0.8rem] text-muted-foreground">
                   Include country code. Example: +1 for US, +91 for India.
                 </p>
