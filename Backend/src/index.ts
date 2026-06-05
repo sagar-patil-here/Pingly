@@ -13,33 +13,50 @@ import { startScheduler } from './services/scheduler';
 
 const app = express();
 const port = process.env.PORT || 3001;
-const logger = pino({
-  transport: {
-    target: 'pino-pretty',
-    options: {
-      colorize: true
-    }
-  }
-});
+const isProduction = process.env.NODE_ENV === 'production';
 
-// Middleware
-app.use(cors());
+const logger = pino(
+  isProduction
+    ? {}
+    : {
+        transport: {
+          target: 'pino-pretty',
+          options: { colorize: true },
+        },
+      }
+);
 
-// Webhooks require raw parsing, but we handle it manually in the route or trust express for now (Clerk webhook fix)
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  process.env.FRONTEND_URL,
+].filter(Boolean) as string[];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow server-to-server requests (no origin) and known frontends
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`CORS blocked for origin: ${origin}`));
+      }
+    },
+    credentials: true,
+  })
+);
+
 app.use(express.json());
 
-// Basic health check
 app.get('/health', (req: Request, res: Response) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Mount routes
-app.use(authRouter); // Mount at root so /webhook/clerk is exposed
+app.use(authRouter);
 app.use('/whatsapp', whatsappRouter);
 app.use('/messages', messageRouter);
-// app.use('/logs', logRoutes);
 
-app.listen(port, () => {
+app.listen(Number(port), '0.0.0.0', () => {
   logger.info(`Server is running on port ${port}`);
   startScheduler();
 });
