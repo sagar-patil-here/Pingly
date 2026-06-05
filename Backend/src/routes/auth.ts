@@ -29,7 +29,7 @@ router.post('/webhook/clerk', async (req: Request, res: Response): Promise<void>
       "svix-signature": svix_signature,
     });
   } catch (err: any) {
-    logger.error('Error verifying webhook:', err.message);
+    logger.error(err, 'Error verifying webhook:');
     res.status(400).json({ error: 'Error verifying webhook' });
     return;
   }
@@ -52,7 +52,7 @@ router.post('/webhook/clerk', async (req: Request, res: Response): Promise<void>
     });
 
     if (error) {
-      logger.error('Failed to sync user to Supabase:', error);
+      logger.error(error, 'Failed to sync user to Supabase:');
       res.status(500).json({ error: 'Database error' });
       return;
     }

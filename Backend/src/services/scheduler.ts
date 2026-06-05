@@ -31,7 +31,7 @@ export const startScheduler = () => {
         .lte('scheduled_time', now);
 
       if (error) {
-        logger.error('Error fetching scheduled messages:', error);
+        logger.error(error, 'Error fetching scheduled messages:');
         return;
       }
 
@@ -69,7 +69,7 @@ export const startScheduler = () => {
           }
           
         } catch (err: any) {
-          logger.error(`Failed to send message ${msg.id}:`, err?.message);
+          logger.error(err, `Failed to send message ${msg.id}:`);
           
           await supabase.from('execution_logs').insert({
             scheduled_message_id: msg.id,
@@ -82,7 +82,7 @@ export const startScheduler = () => {
       }
 
     } catch (error) {
-      logger.error('Scheduler cron job error:', error);
+      logger.error(error, 'Scheduler cron job error:');
     }
   });
 };

@@ -1,15 +1,15 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import pino from 'pino';
 
+// Load environment variables FIRST before importing any modules that depend on them
+dotenv.config();
+
+import pino from 'pino';
 import authRouter from './routes/auth';
 import whatsappRouter from './routes/whatsapp';
 import messageRouter from './routes/messages';
 import { startScheduler } from './services/scheduler';
-
-// Load environment variables
-dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 3001;

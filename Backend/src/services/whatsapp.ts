@@ -1,28 +1,30 @@
-import makeWASocket, { DisconnectReason, useMultiFileAuthState } from '@whiskeysockets/baileys';
+import makeWASocket, { DisconnectReason } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import { useSupabaseAuthState } from './whatsapp-auth';
+import { ensureUser } from './users';
 import { supabase } from './supabase';
 import pino from 'pino';
 import { EventEmitter } from 'events';
 
 const logger = pino();
 
-// To track active connections in memory
 export const activeConnections = new Map<string, any>();
 export const qrEmitters = new Map<string, EventEmitter>();
 
-export const initializeWhatsAppConnection = async (userId: string) => {
-  if (activeConnections.has(userId)) {
-    return activeConnections.get(userId);
+export const initializeWhatsAppConnection = async (clerkId: string) => {
+  if (activeConnections.has(clerkId)) {
+    return activeConnections.get(clerkId);
   }
 
-  logger.info(`Initializing WhatsApp session for user ${userId}`);
-  const { state, saveCreds } = await useSupabaseAuthState(userId);
-  
-  if (!qrEmitters.has(userId)) {
-    qrEmitters.set(userId, new EventEmitter());
+  const internalUserId = await ensureUser(clerkId);
+
+  logger.info(`Initializing WhatsApp session for user ${clerkId}`);
+  const { state, saveCreds } = await useSupabaseAuthState(internalUserId);
+
+  if (!qrEmitters.has(clerkId)) {
+    qrEmitters.set(clerkId, new EventEmitter());
   }
-  const emitter = qrEmitters.get(userId)!;
+  const emitter = qrEmitters.get(clerkId)!;
 
   const sock = makeWASocket({
     auth: state,
@@ -38,63 +40,71 @@ export const initializeWhatsAppConnection = async (userId: string) => {
     }
 
     if (connection === 'close') {
-      const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
-      logger.info(`Connection closed for user ${userId}. Reconnecting: ${shouldReconnect}`);
-      
-      activeConnections.delete(userId);
+      const shouldReconnect =
+        (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
+      logger.info(`Connection closed for user ${clerkId}. Reconnecting: ${shouldReconnect}`);
+
+      activeConnections.delete(clerkId);
       emitter.emit('status', 'disconnected');
-      
+
       if (shouldReconnect) {
-        setTimeout(() => initializeWhatsAppConnection(userId), 5000);
+        setTimeout(() => initializeWhatsAppConnection(clerkId), 5000);
       } else {
-        // Logged out
-        await supabase.from('whatsapp_sessions').update({ connection_status: 'disconnected' }).eq('user_id', userId);
+        await supabase
+          .from('whatsapp_sessions')
+          .update({ connection_status: 'disconnected' })
+          .eq('user_id', internalUserId);
       }
     } else if (connection === 'open') {
-      logger.info(`WhatsApp connected for user ${userId}`);
-      activeConnections.set(userId, sock);
+      logger.info(`WhatsApp connected for user ${clerkId}`);
+      activeConnections.set(clerkId, sock);
       emitter.emit('status', 'connected');
-      
-      await supabase.from('whatsapp_sessions').upsert({
-        user_id: userId,
-        connection_status: 'connected',
-        last_connected: new Date().toISOString()
-      }, { onConflict: 'user_id' });
+
+      await supabase.from('whatsapp_sessions').upsert(
+        {
+          user_id: internalUserId,
+          connection_status: 'connected',
+          last_connected: new Date().toISOString(),
+        },
+        { onConflict: 'user_id' }
+      );
     }
   });
 
   sock.ev.on('creds.update', saveCreds);
 
-  activeConnections.set(userId, sock);
+  activeConnections.set(clerkId, sock);
   return sock;
 };
 
-export const getWhatsAppConnection = (userId: string) => {
-  return activeConnections.get(userId);
+export const getWhatsAppConnection = (clerkId: string) => {
+  return activeConnections.get(clerkId);
 };
 
-export const sendScheduledMessage = async (userId: string, recipientNumber: string, text: string) => {
-  let sock = getWhatsAppConnection(userId);
-  
+export const sendScheduledMessage = async (
+  clerkId: string,
+  recipientNumber: string,
+  text: string
+) => {
+  let sock = getWhatsAppConnection(clerkId);
+
   if (!sock) {
-    sock = await initializeWhatsAppConnection(userId);
-    // Give it a moment to connect if it was offline
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    sock = await initializeWhatsAppConnection(clerkId);
+    await new Promise((resolve) => setTimeout(resolve, 3000));
   }
-  
-  // Format the number to WhatsApp format. Assume stripping everything but numbers and adding @s.whatsapp.net
-  const jid = recipientNumber.replace(/\\D/g, '') + '@s.whatsapp.net';
-  
+
+  const jid = recipientNumber.replace(/\D/g, '') + '@s.whatsapp.net';
+
   try {
     const [result] = await sock.onWhatsApp(jid);
     if (!result?.exists) {
       throw new Error(`Number ${recipientNumber} is not on WhatsApp`);
     }
-    
+
     await sock.sendMessage(jid, { text });
     return true;
   } catch (error) {
-    logger.error(`Failed to send message to ${recipientNumber}: `, error);
+    logger.error(error, `Failed to send message to ${recipientNumber}:`);
     throw error;
   }
 };

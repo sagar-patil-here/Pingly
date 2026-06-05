@@ -1,13 +1,14 @@
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { MessageCircle, Clock, Zap, Shield, ArrowRight } from "lucide-react";
+import { LandingNavAuth } from "@/components/landing-nav-auth";
+import { LandingHeroCta } from "@/components/landing-hero-cta";
+import { MessageCircle, Clock, Zap, Shield } from "lucide-react";
 
 export default function LandingPage() {
   return (
     <div className="flex flex-col min-h-screen">
       {/* Navigation */}
       <header className="px-6 lg:px-8 h-16 flex items-center justify-between border-b border-border/50 bg-background/50 backdrop-blur-xl sticky top-0 z-50">
-        <Link className="flex items-center justify-center gap-2" href="#">
+        <Link className="flex items-center justify-center gap-2" href="/">
           <div className="bg-primary p-1.5 rounded-lg">
             <MessageCircle className="h-5 w-5 text-primary-foreground" />
           </div>
@@ -17,12 +18,7 @@ export default function LandingPage() {
           <Link className="text-sm font-medium hover:text-primary transition-colors" href="#features">
             Features
           </Link>
-          <Link className="text-sm font-medium hover:text-primary transition-colors" href="/sign-in">
-            Log in
-          </Link>
-          <Button asChild className="rounded-full shadow-lg hover:shadow-primary/25 transition-all">
-            <Link href="/sign-up">Get Started</Link>
-          </Button>
+          <LandingNavAuth />
         </nav>
       </header>
 
@@ -47,14 +43,7 @@ export default function LandingPage() {
               Connect your account securely and automate your messaging in seconds.
             </p>
             
-            <div className="space-x-4 flex items-center mt-8">
-              <Button size="lg" className="rounded-full h-14 px-8 text-base font-semibold shadow-xl hover:shadow-primary/30 transition-all hover:-translate-y-1" asChild>
-                <Link href="/sign-up">
-                  Start Scheduling for Free
-                  <ArrowRight className="ml-2 h-5 w-5" />
-                </Link>
-              </Button>
-            </div>
+            <LandingHeroCta />
           </div>
         </section>
 

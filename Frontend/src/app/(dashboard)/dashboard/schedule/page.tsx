@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { format } from "date-fns";
-import { CalendarIcon, Send, Search, Trash2, Edit2, Play } from "lucide-react";
+import { CalendarIcon, Send, Search, Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,28 +30,101 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { useApi } from "@/lib/api";
+import type { ScheduledMessage } from "@/lib/types";
 
 export default function SchedulePage() {
+  const { client } = useApi();
   const [date, setDate] = useState<Date>();
+  const [time, setTime] = useState("09:00");
   const [recipient, setRecipient] = useState("");
   const [message, setMessage] = useState("");
+  const [recurrence, setRecurrence] = useState("once");
+  const [messages, setMessages] = useState<ScheduledMessage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [search, setSearch] = useState("");
 
-  const handleSchedule = () => {
+  const loadMessages = async () => {
+    try {
+      const { data } = await client.get<ScheduledMessage[]>("/messages");
+      setMessages(data);
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || "Failed to load messages");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadMessages();
+  }, [client]);
+
+  const handleSchedule = async () => {
     if (!recipient || !message || !date) {
       toast.error("Please fill in all details");
       return;
     }
-    toast.success("Message scheduled successfully!");
-    // Form clear logic here
-    setRecipient("");
-    setMessage("");
-    setDate(undefined);
+
+    const [hours, minutes] = time.split(":").map(Number);
+    const scheduledDate = new Date(date);
+    scheduledDate.setHours(hours, minutes, 0, 0);
+
+    if (scheduledDate <= new Date()) {
+      toast.error("Scheduled time must be in the future");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await client.post("/messages", {
+        recipient_number: recipient,
+        message,
+        scheduled_time: scheduledDate.toISOString(),
+        recurrence_type: recurrence,
+      });
+      toast.success("Message scheduled successfully!");
+      setRecipient("");
+      setMessage("");
+      setDate(undefined);
+      setTime("09:00");
+      setRecurrence("once");
+      await loadMessages();
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || "Failed to schedule message");
+    } finally {
+      setSubmitting(false);
+    }
   };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await client.delete(`/messages/${id}`);
+      toast.success("Message deleted");
+      setMessages((prev) => prev.filter((m) => m.id !== id));
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || "Failed to delete message");
+    }
+  };
+
+  const filtered = messages.filter(
+    (m) =>
+      m.recipient_number.includes(search) ||
+      m.message.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const pending = filtered.filter((m) => m.status === "pending");
 
   return (
     <div className="max-w-5xl mx-auto flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500 min-h-screen">
-      
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Scheduled Messages</h1>
         <p className="text-muted-foreground mt-1">
@@ -64,7 +137,7 @@ export default function SchedulePage() {
           <TabsTrigger value="create">New Message</TabsTrigger>
           <TabsTrigger value="active">Active Schedules</TabsTrigger>
         </TabsList>
-        
+
         <TabsContent value="create" className="mt-6">
           <Card className="bg-card/50 backdrop-blur-md max-w-2xl">
             <CardHeader>
@@ -74,24 +147,25 @@ export default function SchedulePage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              
               <div className="space-y-2">
                 <Label htmlFor="recipient">Recipient Number</Label>
-                <Input 
-                  id="recipient" 
-                  placeholder="+1 (123) 456-7890" 
+                <Input
+                  id="recipient"
+                  placeholder="+1 (123) 456-7890"
                   type="tel"
                   value={recipient}
                   onChange={(e) => setRecipient(e.target.value)}
                 />
-                <p className="text-[0.8rem] text-muted-foreground">Include country code. Example: +1 for US, +91 for India.</p>
+                <p className="text-[0.8rem] text-muted-foreground">
+                  Include country code. Example: +1 for US, +91 for India.
+                </p>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="message">Message</Label>
-                <Textarea 
-                  id="message" 
-                  placeholder="Hey, just a reminder about our meeting tomorrow..." 
+                <Textarea
+                  id="message"
+                  placeholder="Hey, just a reminder about our meeting tomorrow..."
                   className="min-h-[120px]"
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
@@ -104,7 +178,7 @@ export default function SchedulePage() {
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button
-                        variant={"outline"}
+                        variant="outline"
                         className={`w-full justify-start text-left font-normal ${!date && "text-muted-foreground"}`}
                       >
                         <CalendarIcon className="mr-2 h-4 w-4" />
@@ -112,24 +186,25 @@ export default function SchedulePage() {
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={date}
-                        onSelect={setDate}
-                      />
+                      <Calendar mode="single" selected={date} onSelect={setDate} />
                     </PopoverContent>
                   </Popover>
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label>Time</Label>
-                  <Input type="time" className="w-full" />
+                  <Input
+                    type="time"
+                    className="w-full"
+                    value={time}
+                    onChange={(e) => setTime(e.target.value)}
+                  />
                 </div>
               </div>
 
               <div className="space-y-2">
                 <Label>Recurrence</Label>
-                <Select defaultValue="once">
+                <Select value={recurrence} onValueChange={setRecurrence}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select Recurrence" />
                   </SelectTrigger>
@@ -142,8 +217,13 @@ export default function SchedulePage() {
                 </Select>
               </div>
 
-              <Button onClick={handleSchedule} className="w-full" size="lg">
-                <Send className="mr-2 h-4 w-4" /> Schedule Message
+              <Button onClick={handleSchedule} className="w-full" size="lg" disabled={submitting}>
+                {submitting ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="mr-2 h-4 w-4" />
+                )}
+                Schedule Message
               </Button>
             </CardContent>
           </Card>
@@ -158,55 +238,73 @@ export default function SchedulePage() {
               </div>
               <div className="relative w-64">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Search messages..." className="pl-8" />
+                <Input
+                  placeholder="Search messages..."
+                  className="pl-8"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
               </div>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Recipient</TableHead>
-                    <TableHead>Message Info</TableHead>
-                    <TableHead>Scheduled For</TableHead>
-                    <TableHead>Recurrence</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {[
-                    { number: '+1234567890', msg: 'Happy birthday!', date: 'Tomorrow 9:00 AM', status: 'Pending', type: 'Once' },
-                    { number: '+9876543210', msg: 'Team Standup reminder', date: 'Today 10:00 AM', status: 'Pending', type: 'Daily' },
-                  ].map((row, idx) => (
-                    <TableRow key={idx}>
-                      <TableCell className="font-medium">{row.number}</TableCell>
-                      <TableCell className="max-w-[200px] truncate text-muted-foreground">
-                        {row.msg}
-                      </TableCell>
-                      <TableCell>{row.date}</TableCell>
-                      <TableCell>
-                        <Badge variant={row.type === 'Once' ? 'outline' : 'secondary'}>{row.type}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="default" className="bg-orange-500/20 text-orange-500 hover:bg-orange-500/30 border-none">
-                          {row.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right space-x-2">
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <Play className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
+              {loading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : pending.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4">No pending messages.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Recipient</TableHead>
+                      <TableHead>Message Info</TableHead>
+                      <TableHead>Scheduled For</TableHead>
+                      <TableHead>Recurrence</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {pending.map((row) => (
+                      <TableRow key={row.id}>
+                        <TableCell className="font-medium">{row.recipient_number}</TableCell>
+                        <TableCell className="max-w-[200px] truncate text-muted-foreground">
+                          {row.message}
+                        </TableCell>
+                        <TableCell>
+                          {format(new Date(row.scheduled_time), "MMM d, h:mm a")}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={row.recurrence_type === "once" ? "outline" : "secondary"}
+                          >
+                            {row.recurrence_type}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant="default"
+                            className="bg-orange-500/20 text-orange-500 hover:bg-orange-500/30 border-none capitalize"
+                          >
+                            {row.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive"
+                            onClick={() => handleDelete(row.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

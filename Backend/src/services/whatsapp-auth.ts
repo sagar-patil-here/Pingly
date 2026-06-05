@@ -4,19 +4,20 @@ import pino from 'pino';
 
 const logger = pino();
 
-export const useSupabaseAuthState = async (userId: string): Promise<{ state: AuthenticationState, saveCreds: () => Promise<void> }> => {
+export const useSupabaseAuthState = async (
+  internalUserId: string
+): Promise<{ state: AuthenticationState; saveCreds: () => Promise<void> }> => {
   let creds: any;
   let keys: any = {};
 
-  // Fetch existing session from Supabase
   const { data, error } = await supabase
     .from('whatsapp_sessions')
     .select('session_data')
-    .eq('user_id', userId)
+    .eq('user_id', internalUserId)
     .single();
 
   if (error && error.code !== 'PGRST116') {
-    logger.error('Error fetching auth state from Supabase:', error);
+    logger.error(error, 'Error fetching auth state from Supabase:');
   }
 
   if (data?.session_data) {
@@ -25,7 +26,7 @@ export const useSupabaseAuthState = async (userId: string): Promise<{ state: Aut
       creds = parsed.creds;
       keys = parsed.keys || {};
     } catch (err) {
-      logger.error('Failed to parse existing session state', err);
+      logger.error(err, 'Failed to parse existing session state');
     }
   }
 
@@ -35,14 +36,16 @@ export const useSupabaseAuthState = async (userId: string): Promise<{ state: Aut
 
   const saveCreds = async () => {
     const sessionData = JSON.parse(JSON.stringify({ creds, keys }, BufferJSON.replacer));
-    
-    // Upsert session
-    const { error } = await supabase
+
+    const { error: saveError } = await supabase
       .from('whatsapp_sessions')
-      .upsert({ user_id: userId, session_data: sessionData }, { onConflict: 'user_id' });
-    
-    if (error) {
-      logger.error('Failed to save auth state to Supabase:', error);
+      .upsert(
+        { user_id: internalUserId, session_data: sessionData },
+        { onConflict: 'user_id' }
+      );
+
+    if (saveError) {
+      logger.error(saveError, 'Failed to save auth state to Supabase:');
     }
   };
 
@@ -52,22 +55,24 @@ export const useSupabaseAuthState = async (userId: string): Promise<{ state: Aut
       keys: {
         get: (type, ids) => {
           const dict = keys[type];
-          return dict ? ids.reduce((dict2: any, id: any) => {
-            if (dict[id]) {
-              dict2[id] = dict[id];
-            }
-            return dict2;
-          }, {}) : {};
+          return dict
+            ? ids.reduce((dict2: any, id: any) => {
+                if (dict[id]) {
+                  dict2[id] = dict[id];
+                }
+                return dict2;
+              }, {})
+            : {};
         },
         set: (data) => {
           for (const type in data) {
             keys[type] = keys[type] || {};
-            // @ts-ignore
+            // @ts-ignore - baileys signal key types are dynamic
             Object.assign(keys[type], data[type]);
           }
-          saveCreds(); // Trigger save on key set
-        }
-      }
+          saveCreds();
+        },
+      },
     },
     saveCreds,
   };
